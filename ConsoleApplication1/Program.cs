@@ -10,7 +10,7 @@ namespace ConsoleApplication1
     class Program
     {
         static void Main(string[] args)
-        {
+        { 
             ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
             redis.GetDatabase().KeyDelete("test1");
             redis.GetDatabase().KeyDelete("test2");
