@@ -30,7 +30,7 @@ namespace ConsoleApplication1
             var persec = 10000;
             
             while(true)
-            {
+            { 
                 sw.Reset();
                 sw.Start();
                 for (var i = 0; i < persec; i++)
