@@ -1,10 +1,12 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using StackExchange.Redis;
 using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using RedisLib2;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace ConsoleApplication1
 {
@@ -14,10 +16,13 @@ namespace ConsoleApplication1
         {
             Stopwatch sw = new Stopwatch();
             //var buffer = new RedisCircularBuffer(redis.GetDatabase(), redis.GetServer("DDBRDS001.spreadex.com:6381"), 1000000, "testbuffer", null);
-            var buffer = new RedisCircularBuffer(redis.GetDatabase(), redis.GetServer("localhost:6379"), 1000000, "testbuffer", null);
+            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 40000);
             long c = -1;
 
-            var persec = 100000;
+            var persec = 10000;
+
+            List<Task> t = new List<Task>();
+
             while (true)
             {
                 sw.Reset();
@@ -26,11 +31,16 @@ namespace ConsoleApplication1
                 {
                     c++;
                     var payload = JsonConvert.SerializeObject(new { Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 10) });
-                    buffer.Publish(c);
+                    t.Add(buffer.Publish(c));
 
-                    if (c % 100000 == 0)
+
+                    if (c % 10000 == 0)
                         Console.WriteLine(c);
                 }
+
+                Task.WaitAll(t.ToArray());
+                t.Clear();
+
                 var sleep = (int)Math.Max(1000 - sw.ElapsedMilliseconds, 0);
                 Thread.Sleep(sleep);
             }

@@ -18,7 +18,6 @@ namespace ConsoleApplication2
             //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
             //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-
             var queue = new RedisQueue(cm.GetDatabase(), server, q);
 
             Stopwatch sw = new Stopwatch();
@@ -52,7 +51,7 @@ namespace ConsoleApplication2
             //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
             //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-            var queue = new RedisCircularBuffer(cm.GetDatabase(), server, 1000000, q, "consumer1");
+            var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 40000, "consumer1");
 
             long old = -1;
             bool hadone = false;
@@ -63,7 +62,7 @@ namespace ConsoleApplication2
             var count = 0;
             var c2 = 0;
 
-            queue.Subscribe((a) =>
+            ring.AsObservable().Subscribe((a) =>
             {
                 count++;
                 c2++;
@@ -78,17 +77,20 @@ namespace ConsoleApplication2
                 if (sw.ElapsedMilliseconds > 1000)
                 {
                     var amount = (count * 1000) / sw.ElapsedMilliseconds;
-                    Console.WriteLine("\r" + amount + "             " + queue.LocalQueueSize);
+                    Console.WriteLine("\r" + amount + "             " + num + "            " + ring.LocalQueueSize);
                     count = 0;
                     sw.Reset();
                     sw.Start();
                 }
 
-                if (c2 % 100000 == 0)
-                {
-                    Console.WriteLine(c2);
-                    Console.WriteLine(a);
-                }
+                //if (c2 % 10000 == 0)
+                //{
+                //    Console.WriteLine(c2);
+                //    Console.WriteLine(a);
+                //}
+            }, (Exception e) =>
+            {
+                Console.WriteLine(e);
             });
         }
 
