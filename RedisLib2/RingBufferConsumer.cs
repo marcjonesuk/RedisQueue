@@ -60,6 +60,7 @@ namespace RedisLib2
 
 
 redis.call('SET', 'oldpos', position)
+redis.call('SET', 'oldhead', head)
 
                                         if position == " + NotStarted + @" then
                                             redis.call('SET', '" + _consumerIdKey + @"', head)
@@ -70,6 +71,9 @@ redis.call('SET', 'oldpos', position)
                                         end
                                         if position < head then
                                             redis.call('SET', '" + _consumerIdKey + @"', head)
+                                            if head == " + (size - 1) + @" then
+                                                redis.call('SET', '" + _consumerIdKey + @"', -1)
+                                            end
                                             local table = {}
                                             table[1] = redis.call('HGET', '" + idKey + @"', position + 1)
                                             local index = 2
@@ -84,7 +88,7 @@ redis.call('SET', 'oldpos', position)
                                             local table = {}
                                             table[1] = redis.call('HGET', '" + idKey + @"', position + 1)
                                             local index = 2
-                                            for i=position + 1,  " + size + @" do
+                                            for i=position + 1,  " + (size - 1) + @" do
                                                 table[index] = redis.call('HGET', '" + _key + @"', i)
                                                 index = index + 1
                                             end
@@ -148,18 +152,10 @@ redis.call('SET', 'oldpos', position)
                         {
                             var range = (RedisValue[])result;
 
-                            try
-                            {
                                 if (long.Parse(range[0]) != long.Parse(range[1]))
                                 {
 
                                 }
-                            }
-                            catch(Exception e)
-                            {
-
-                            }
-
 
                             if (range[range.Length - 1].IsNull)
                             {
