@@ -17,7 +17,7 @@ namespace RedisLib2
 
     public class RingBufferConsumer
     {
-        private const long MaxReadSize = 100;
+        private const long MaxReadSize = 10;
         public const long NotStarted = -2;
         private IDatabase _db;
         private LoadedLuaScript _script;
@@ -40,10 +40,9 @@ namespace RedisLib2
             get; private set;
         }
 
-        public long Size
-        {
-            get; private set;
-        }
+        public long Size { get; private set; }
+        public long Head { get; private set; }
+        public long Position { get; private set; }
 
         public RingBufferConsumer(IDatabase db, IServer server, string topic, int size, string subscriptionId)
         {
@@ -135,9 +134,13 @@ namespace RedisLib2
 
                             var range = (RedisValue[])result;
 
-                            foreach (var redisValue in range)
+                            var length = range.Length;
+                            Position = long.Parse(range[length - 2]);
+                            Head = long.Parse(range[length - 1]);
+
+                            for (var i = 0; i < range.Length - 2; i++)
                             {
-                                o.OnNext(redisValue);
+                                o.OnNext(range[i]);
                             }
                         }
                         else

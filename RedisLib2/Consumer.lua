@@ -57,4 +57,6 @@ end
 --update consumer position to reflect the new position
 redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
 
+table.insert(result, lastRead)
+table.insert(result, head)
 return result

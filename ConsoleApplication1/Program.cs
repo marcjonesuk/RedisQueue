@@ -20,31 +20,41 @@ namespace ConsoleApplication1
             //var buffer2 = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
 
             var persec = 100000;
-            for (var p = 0; p < 1; p++)
+
+            var numpros = 2;
+            for (var pro = 0; pro < numpros; pro++)
             {
-                List<Task> t = new List<Task>();
                 Task.Run(() =>
                 {
-                    long c = -1;
-                    while (true)
+                    for (var p = 0; p < 1; p++)
                     {
-                        sw.Reset();
-                        sw.Start();
-                        for (var i = 0; i < persec; i++)
+                        List<Task> t = new List<Task>();
+                        Task.Run(() =>
                         {
-                            c++;
-                            var payload = JsonConvert.SerializeObject(new {Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 100)});
-                            t.Add(buffer.Publish(payload));
+                            long c = -1;
+                            while (true)
+                            {
+                                sw.Reset();
+                                sw.Start();
+                                for (var i = 0; i < persec; i++)
+                                {
+                                    c++;
+                                    var payload =
+                                        JsonConvert.SerializeObject(
+                                            new {Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 100)});
+                                    t.Add(buffer.Publish(payload));
 
-                            if (c % 10000 == 0)
-                                Console.WriteLine(c);
-                        }
+                                    if (c % 10000 == 0)
+                                        Console.WriteLine(c);
+                                }
 
-                        Task.WaitAll(t.ToArray());
-                        t.Clear();
+                                Task.WaitAll(t.ToArray());
+                                t.Clear();
 
-                        var sleep = (int) Math.Max(1000 - sw.ElapsedMilliseconds, 0);
-                        Thread.Sleep(sleep);
+                                var sleep = (int) Math.Max(1000 - sw.ElapsedMilliseconds, 0);
+                                Thread.Sleep(sleep);
+                            }
+                        });
                     }
                 });
             }
