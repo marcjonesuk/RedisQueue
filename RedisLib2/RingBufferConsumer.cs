@@ -2,6 +2,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -16,6 +17,7 @@ namespace RedisLib2
 
     public class RingBufferConsumer
     {
+        private const long MaxReadSize = 50;
         public const long NotStarted = -2;
         private IDatabase _db;
         private int _size;
@@ -35,6 +37,11 @@ namespace RedisLib2
             get; private set;
         }
 
+        public string ConsumerId
+        {
+            get; private set;
+        }
+
         public long Size
         {
             get; private set;
@@ -44,54 +51,15 @@ namespace RedisLib2
         {
             Topic = topic;
             Size = size;
+            ConsumerId = consumerId;
+
             _db = db;
             var _key = $"{RingBufferProducer.KeyPrefix}:{topic}";
             var _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{consumerId}";
             var _headKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__head";
             var idKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__mid";
 
-            string initScript = @"";
-
-            string pullScript = @"local head = tonumber(redis.call('GET', '" + _headKey + @"'))
-                                        if head == " + RingBufferProducer.Paused + @" then
-                                            return
-                                        end
-                                        local position = tonumber(redis.call('GET', '" + _consumerIdKey + @"'))
-
-
-redis.call('SET', 'oldpos', position)
-
-                                        if position == " + NotStarted + @" then
-                                            redis.call('SET', '" + _consumerIdKey + @"', head)
-                                            return
-                                        end
-                                        if position == head then
-                                            return
-                                        end
-                                        if position < head then
-                                            redis.call('SET', '" + _consumerIdKey + @"', head)
-                                            local table = {}
-                                            table[1] = redis.call('HGET', '" + idKey + @"', position + 1)
-                                            local index = 2
-                                            for i=position + 1, head do
-                                                table[index] = redis.call('HGET', '" + _key + @"', i)
-                                                index = index + 1
-                                            end
-                                            return table
-                                        end
-                                        if position > head then
-                                            redis.call('SET', '" + _consumerIdKey + @"', -1)
-                                            local table = {}
-                                            table[1] = redis.call('HGET', '" + idKey + @"', position + 1)
-                                            local index = 2
-                                            for i=position + 1,  " + size + @" do
-                                                table[index] = redis.call('HGET', '" + _key + @"', i)
-                                                index = index + 1
-                                            end
-                                            return table
-                                        end";
-
-            _script = LuaScript.Prepare(pullScript).Load(server);
+            _script = LuaScript.Prepare(File.ReadAllText("consumer.lua")).Load(server);
             db.StringSet(_consumerIdKey, NotStarted);
         }
 
@@ -143,9 +111,27 @@ redis.call('SET', 'oldpos', position)
                 {
                     try
                     {
-                        var result = await _db.ScriptEvaluateAsync(_script).ConfigureAwait(false);
+                        var result = await _db.ScriptEvaluateAsync(_script, new { Size = Size, Topic = Topic, ConsumerId = ConsumerId, MaxReadSize = MaxReadSize }).ConfigureAwait(false);
                         if (!result.IsNull)
                         {
+                            if (result.ToString().StartsWith("AT HEAD"))
+                            {
+                                Thread.Sleep(100);
+                                continue;
+                            }
+
+                            if (result.ToString() == "PRODUCER NOT STARTED")
+                            {
+                                Thread.Sleep(100);
+                                continue;
+                            }
+
+                            if (result.ToString() == "CONSUMER STARED")
+                            {
+                                Thread.Sleep(100);
+                                continue;
+                            }
+
                             var range = (RedisValue[])result;
 
                             try
@@ -155,7 +141,7 @@ redis.call('SET', 'oldpos', position)
 
                                 }
                             }
-                            catch(Exception e)
+                            catch (Exception e)
                             {
 
                             }
