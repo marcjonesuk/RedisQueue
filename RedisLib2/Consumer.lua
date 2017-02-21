@@ -10,11 +10,11 @@ if head == -2 then
 	return 'PRODUCER NOT STARTED'
 end
 
-local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':@ConsumerId'))
+local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @ConsumerId))
 
 --consumer has just started up so sync to head position
 if current == -2 then
-	current = head
+	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @ConsumerId, head)
 	return 'CONSUMER STARTED'
 end 
 
@@ -39,7 +39,7 @@ while continue do
 	end
 	
 	--read the maximum allowed messages so return to allow other consumers to read
-	if resultIndex == @MaxReadSize then
+	if resultIndex > tonumber(@MaxReadSize) then
 		continue = false
 	end 
 

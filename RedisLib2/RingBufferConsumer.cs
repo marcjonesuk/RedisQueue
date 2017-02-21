@@ -17,7 +17,7 @@ namespace RedisLib2
 
     public class RingBufferConsumer
     {
-        private const long MaxReadSize = 50;
+        private const long MaxReadSize = 25;
         public const long NotStarted = -2;
         private IDatabase _db;
         private int _size;
@@ -126,7 +126,7 @@ namespace RedisLib2
                                 continue;
                             }
 
-                            if (result.ToString() == "CONSUMER STARED")
+                            if (result.ToString() == "CONSUMER STARTED")
                             {
                                 Thread.Sleep(100);
                                 continue;
@@ -134,37 +134,37 @@ namespace RedisLib2
 
                             var range = (RedisValue[])result;
 
-                            try
-                            {
-                                if (long.Parse(range[0]) != long.Parse(range[1]))
-                                {
+                            //try
+                            //{
+                            //    if (long.Parse(range[0]) != long.Parse(range[1]))
+                            //    {
 
-                                }
-                            }
-                            catch (Exception e)
-                            {
+                            //    }
+                            //}
+                            //catch (Exception e)
+                            //{
 
-                            }
+                            //}
 
 
-                            if (range[range.Length - 1].IsNull)
-                            {
+                            //if (range[range.Length - 1].IsNull)
+                            //{
 
-                            }
+                            //}
 
-                            if (range[0].ToString().Length != 20)
-                                throw new Exception("no id");
+                            //if (range[0].ToString().Length != 20)
+                            //    throw new Exception("no id");
 
-                            msgId = long.Parse(range[0]);
+                            //msgId = long.Parse(range[0]);
 
-                            if (expectedMsgId != -1 && msgId != expectedMsgId)
-                                throw new MessageLostException();
+                            //if (expectedMsgId != -1 && msgId != expectedMsgId)
+                            //    throw new MessageLostException();
 
                             for (var i = 1; i < range.Length; i++)
                                 _bc.Add(range[i]);
 
-                            expectedMsgId = msgId + range.Length - 1;
-                            last = range;
+                            //expectedMsgId = msgId + range.Length - 1;
+                            //last = range;
                         }
                         else
                         {

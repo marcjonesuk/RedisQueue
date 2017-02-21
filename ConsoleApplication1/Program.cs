@@ -19,7 +19,7 @@ namespace ConsoleApplication1
             var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 40000);
             long c = -1;
 
-            var persec = 10000;
+            var persec = 100;
 
             List<Task> t = new List<Task>();
 
