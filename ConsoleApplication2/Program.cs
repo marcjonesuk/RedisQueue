@@ -51,7 +51,17 @@ namespace ConsoleApplication2
             //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
             //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-            var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 40000, "consumer1");
+            var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer1");
+
+            //for (int i = 2; i <= 3; i++)
+            //{
+            //    var consumer2 = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer" + i);
+            //    long x2 = 0;
+            //    consumer2.AsObservable().Subscribe(x =>
+            //    {
+            //        x2++;
+            //    });
+            //}
 
             long old = -1;
             bool hadone = false;
@@ -66,18 +76,21 @@ namespace ConsoleApplication2
             {
                 count++;
                 c2++;
-                var num = long.Parse(a);
 
-                if (hadone && num != old + 1)
-                    Console.WriteLine("error");
+                //dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
 
-                old = num;
+                //var num = long.Parse(a);
+
+                //if (hadone && num != old + 1)
+                //    Console.WriteLine("error");
+
+               // old = num;
                 hadone = true;
                 //Thread.Sleep(1);
                 if (sw.ElapsedMilliseconds > 1000)
                 {
                     var amount = (count * 1000) / sw.ElapsedMilliseconds;
-                    Console.WriteLine("\r" + amount + "             " + num + "            " + ring.LocalQueueSize);
+                    Console.WriteLine("\r" + amount + "             " + a + "            " + ring.LocalBufferSize);
                     count = 0;
                     sw.Reset();
                     sw.Start();

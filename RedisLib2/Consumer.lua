@@ -10,11 +10,11 @@ if head == -2 then
 	return 'PRODUCER NOT STARTED'
 end
 
-local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @ConsumerId))
+local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId))
 
 --consumer has just started up so sync to head position
 if current == -2 then
-	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @ConsumerId, head)
+	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, head)
 	return 'CONSUMER STARTED'
 end 
 
@@ -24,12 +24,12 @@ if current == head then
 end
 
 local result = {}
-local resultIndex = 1
+local resultIndex = 0
 
 local continue = true
-while continue do
-	result[resultIndex] = redis.call('HGET', '__ringbuffer:' .. @Topic, current)
+local lastRead = current
 
+while continue do
 	current = current + 1
 	resultIndex = resultIndex + 1
 
@@ -39,18 +39,22 @@ while continue do
 	end
 	
 	--read the maximum allowed messages so return to allow other consumers to read
-	if resultIndex > tonumber(@MaxReadSize) then
+	if resultIndex == tonumber(@MaxReadSize) then
 		continue = false
 	end 
 
 	--reached the last item in the buffer so wrap around to the start
-	if current == @Size then 
+	if current == tonumber(@Size) then 
 		current = 0
+	end
+
+	if continue then
+		result[resultIndex] = redis.call('HGET', '__ringbuffer:' .. @Topic, current)
+		lastRead = current
 	end
 end
 
 --update consumer position to reflect the new position
-redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @ConsumerId, current)
+redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
 
 return result
-

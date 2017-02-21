@@ -16,34 +16,40 @@ namespace ConsoleApplication1
         {
             Stopwatch sw = new Stopwatch();
             //var buffer = new RedisCircularBuffer(redis.GetDatabase(), redis.GetServer("DDBRDS001.spreadex.com:6381"), 1000000, "testbuffer", null);
-            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 40000);
-            long c = -1;
+            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
+            //var buffer2 = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
 
-            var persec = 100;
-
-            List<Task> t = new List<Task>();
-
-            while (true)
+            var persec = 100000;
+            for (var p = 0; p < 1; p++)
             {
-                sw.Reset();
-                sw.Start();
-                for (var i = 0; i < persec; i++)
+                List<Task> t = new List<Task>();
+                Task.Run(() =>
                 {
-                    c++;
-                    var payload = JsonConvert.SerializeObject(new { Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 10) });
-                    t.Add(buffer.Publish(c));
+                    long c = -1;
+                    while (true)
+                    {
+                        sw.Reset();
+                        sw.Start();
+                        for (var i = 0; i < persec; i++)
+                        {
+                            c++;
+                            var payload = JsonConvert.SerializeObject(new {Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 100)});
+                            t.Add(buffer.Publish(payload));
 
+                            if (c % 10000 == 0)
+                                Console.WriteLine(c);
+                        }
 
-                    if (c % 10000 == 0)
-                        Console.WriteLine(c);
-                }
+                        Task.WaitAll(t.ToArray());
+                        t.Clear();
 
-                Task.WaitAll(t.ToArray());
-                t.Clear();
-
-                var sleep = (int)Math.Max(1000 - sw.ElapsedMilliseconds, 0);
-                Thread.Sleep(sleep);
+                        var sleep = (int) Math.Max(1000 - sw.ElapsedMilliseconds, 0);
+                        Thread.Sleep(sleep);
+                    }
+                });
             }
+
+            Console.ReadLine();
         }
 
         static void Main(string[] args)
@@ -70,8 +76,7 @@ namespace ConsoleApplication1
 
             Stopwatch sw = new Stopwatch();
 
-            var persec = 10000;
-            
+            var persec = 500;
             while(true)
             { 
                 sw.Reset();

@@ -17,17 +17,15 @@ namespace RedisLib2
 
     public class RingBufferConsumer
     {
-        private const long MaxReadSize = 25;
+        private const long MaxReadSize = 100;
         public const long NotStarted = -2;
         private IDatabase _db;
-        private int _size;
         private LoadedLuaScript _script;
-        private string _topic;
-
-        private BlockingCollection<string> _bc = new BlockingCollection<string>(10);
+        public event Action<RedisValue> OnMessageReceived;
+        private BlockingCollection<string> _bc = new BlockingCollection<string>();
         private bool _running;
 
-        public long LocalQueueSize
+        public long LocalBufferSize
         {
             get { return _bc.Count; }
         }
@@ -37,7 +35,7 @@ namespace RedisLib2
             get; private set;
         }
 
-        public string ConsumerId
+        public string SubscriptionId
         {
             get; private set;
         }
@@ -47,20 +45,25 @@ namespace RedisLib2
             get; private set;
         }
 
-        public RingBufferConsumer(IDatabase db, IServer server, string topic, int size, string consumerId)
+        public RingBufferConsumer(IDatabase db, IServer server, string topic, int size, string subscriptionId)
         {
             Topic = topic;
             Size = size;
-            ConsumerId = consumerId;
+            SubscriptionId = subscriptionId;
 
             _db = db;
             var _key = $"{RingBufferProducer.KeyPrefix}:{topic}";
-            var _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{consumerId}";
+            var _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{subscriptionId}";
             var _headKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__head";
             var idKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__mid";
 
             _script = LuaScript.Prepare(File.ReadAllText("consumer.lua")).Load(server);
             db.StringSet(_consumerIdKey, NotStarted);
+        }
+
+        public void Start()
+        {
+            BeginConsuming();
         }
 
         private void BeginProcessing()
@@ -105,70 +108,41 @@ namespace RedisLib2
         {
             Task.Run(async () =>
             {
-                long msgId;
-                long expectedMsgId = -1;
                 while (_running)
                 {
                     try
                     {
-                        var result = await _db.ScriptEvaluateAsync(_script, new { Size = Size, Topic = Topic, ConsumerId = ConsumerId, MaxReadSize = MaxReadSize }).ConfigureAwait(false);
+                        var result = await _db.ScriptEvaluateAsync(_script, new { Size = Size, Topic = Topic, SubscriptionId = SubscriptionId, MaxReadSize = MaxReadSize }).ConfigureAwait(false);
                         if (!result.IsNull)
                         {
                             if (result.ToString().StartsWith("AT HEAD"))
                             {
-                                Thread.Sleep(100);
+                                Thread.Sleep(20);
                                 continue;
                             }
 
                             if (result.ToString() == "PRODUCER NOT STARTED")
                             {
-                                Thread.Sleep(100);
+                                Thread.Sleep(20);
                                 continue;
                             }
 
                             if (result.ToString() == "CONSUMER STARTED")
                             {
-                                Thread.Sleep(100);
+                                Thread.Sleep(20);
                                 continue;
                             }
 
                             var range = (RedisValue[])result;
 
-                            //try
-                            //{
-                            //    if (long.Parse(range[0]) != long.Parse(range[1]))
-                            //    {
-
-                            //    }
-                            //}
-                            //catch (Exception e)
-                            //{
-
-                            //}
-
-
-                            //if (range[range.Length - 1].IsNull)
-                            //{
-
-                            //}
-
-                            //if (range[0].ToString().Length != 20)
-                            //    throw new Exception("no id");
-
-                            //msgId = long.Parse(range[0]);
-
-                            //if (expectedMsgId != -1 && msgId != expectedMsgId)
-                            //    throw new MessageLostException();
-
-                            for (var i = 1; i < range.Length; i++)
-                                _bc.Add(range[i]);
-
-                            //expectedMsgId = msgId + range.Length - 1;
-                            //last = range;
+                            foreach (var redisValue in range)
+                            {
+                                o.OnNext(redisValue);
+                            }
                         }
                         else
                         {
-                            Thread.Sleep(10);
+                            Thread.Sleep(20);
                         }
                     }
                     catch (Exception e)
