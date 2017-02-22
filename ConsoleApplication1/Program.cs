@@ -21,9 +21,10 @@ namespace ConsoleApplication1
 
             var persec = 10000;
 
-            var numpros = 2;
+            var numpros = 1;
             for (var pro = 0; pro < numpros; pro++)
             {
+                var pro2 = pro;
                 Task.Run(() =>
                 {
                     for (var p = 0; p < 1; p++)
@@ -41,7 +42,7 @@ namespace ConsoleApplication1
                                     c++;
                                     var payload =
                                         JsonConvert.SerializeObject(
-                                            new {Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 100)});
+                                            new { Producer = pro2, Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 100)});
                                     t.Add(buffer.Publish(payload));
 
                                     if (c % 10000 == 0)

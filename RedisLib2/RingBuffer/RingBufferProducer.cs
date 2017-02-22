@@ -23,8 +23,7 @@ namespace RedisLib2
             _db = db;
             _key = $"{KeyPrefix}:{topic}";
             _headKey = $"{KeyPrefix}:{topic}:__head";
-            _idKey = $"{KeyPrefix}:{topic}:__id";
-            var idKey = $"{KeyPrefix}:{topic}:__mid";
+            _idKey = $"{KeyPrefix}:{topic}:__nextid";
 
             Size = size;
 

@@ -20,7 +20,7 @@ end
 
 --consumer is at the latest message so do nothing
 if current == head then
-	return 'H' .. head
+	return 'H'
 end
 
 local result = {}
@@ -34,12 +34,12 @@ while continue do
 	resultIndex = resultIndex + 1
 
 	--caught up with the head
-	if current == head then
+	if current > head then
 		continue = false
 	end
 	
 	--read the maximum allowed messages so return to allow other consumers to read
-	if resultIndex == tonumber(@MaxReadSize) then
+	if resultIndex > tonumber(@MaxReadSize) then
 		continue = false
 	end 
 
@@ -53,9 +53,6 @@ while continue do
 		lastRead = current
 	end
 end
-
---update consumer position to reflect the new position
---redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
 
 table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', lastRead))
 table.insert(result, lastRead)

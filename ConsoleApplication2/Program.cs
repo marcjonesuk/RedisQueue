@@ -27,7 +27,8 @@ namespace ConsoleApplication2
 
             Console.WriteLine("starting " + q);
 
-            queue.Subscribe(a => {
+            queue.Subscribe(a =>
+            {
                 dynamic data = JsonConvert.DeserializeObject<ExpandoObject>(a);
                 if (last != null && data.Count - 1 != last)
                 {
@@ -77,18 +78,19 @@ namespace ConsoleApplication2
                 count++;
                 c2++;
 
-                //dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
+                dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
 
-                //var num = long.Parse(a);
+                var num = x.Count; // long.Parse(a);
 
-                //if (hadone && num != old + 1)
-                //    Console.WriteLine("error");
+                if (hadone && num != old + 1)
+                    Console.WriteLine("error");
 
-               // old = num;
+                old = num;
                 hadone = true;
                 //Thread.Sleep(1);
                 if (sw.ElapsedMilliseconds > 1000)
                 {
+                    Console.WriteLine(x.Time - DateTime.UtcNow);
                     var amount = (count * 1000) / sw.ElapsedMilliseconds;
                     Console.WriteLine("\r" + amount + "             " + a + "            " + ring.LocalBufferSize);
                     count = 0;
@@ -105,6 +107,12 @@ namespace ConsoleApplication2
             {
                 Console.WriteLine(e);
             });
+
+            //var qwe = 0;
+            //ring.AsObservable().Subscribe((a) =>
+            //{
+            //    qwe++;
+            //});
         }
 
         static void Main(string[] args)

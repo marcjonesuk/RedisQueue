@@ -29,7 +29,6 @@ namespace RedisLib2
         public const long NotStarted = -2;
         private IDatabase _db;
         private LoadedLuaScript _script;
-        public event Action<RedisValue> OnMessageReceived;
         private BlockingCollection<string> _bc = new BlockingCollection<string>();
         private bool _running;
         private string _consumerIdKey;
@@ -65,54 +64,58 @@ namespace RedisLib2
             var _headKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__head";
             var idKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__mid";
 
-            _script = LuaScript.Prepare(File.ReadAllText("RingBuffer/consumer.lua")).Load(server);
+            _script = LuaScript.Prepare(File.ReadAllText("RingBuffer/consume.lua")).Load(server);
             db.StringSet(_consumerIdKey, NotStarted);
         }
 
-        public void Start()
-        {
-            BeginConsuming();
-        }
+        //public void Start()
+        //{
+        //    BeginConsuming();
+        //}
 
-        private void BeginProcessing()
-        {
-            if (_running)
-                throw new InvalidOperationException("Already processing");
+        //private void BeginProcessing(IObserver<RedisValue> observer)
+        //{
+        //    if (_running)
+        //        throw new InvalidOperationException("Already processing");
 
-            _running = true;
-            Task.Run(() =>
-            {
-                while (!_bc.IsCompleted && _running)
-                {
-                    string data = null;
-                    try
-                    {
-                        data = _bc.Take();
-                    }
-                    catch (InvalidOperationException) { }
-                    if (data != null)
-                    {
-                        o.OnNext(data);
-                    }
-                }
-            });
-        }
+        //    _running = true;
+        //    Task.Run(() =>
+        //    {
+        //        while (!_bc.IsCompleted && _running)
+        //        {
+        //            string data = null;
+        //            try
+        //            {
+        //                data = _bc.Take();
+        //            }
+        //            catch (InvalidOperationException) { }
+        //            if (data != null)
+        //            {
+        //                observer.OnNext(data);
+        //            }
+        //        }
+        //    });
+        //}
 
-        private IObserver<RedisValue> o;
+        private IObservable<RedisValue> _observable = null;
         public IObservable<RedisValue> AsObservable()
         {
-            return Observable.Create<RedisValue>((IObserver<RedisValue> observer) =>
+            if (_observable == null)
             {
-                o = observer;
-                BeginProcessing();
-                BeginConsuming();
-                return Disposable.Create(() => { _running = false; });
-            });
+                _observable = Observable.Create((IObserver<RedisValue> observer) =>
+               {
+                   _running = true;
+                   //BeginProcessing(observer);
+                   BeginConsuming(observer);
+                   return Disposable.Create(() => { _running = false; });
+               });
+            }
+            return _observable;
         }
 
-        private RedisValue[] last;
+        private long lastId = -1;
 
-        public void BeginConsuming()
+        public void BeginConsuming(IObserver<RedisValue> observer)
         {
             Task.Run(async () =>
             {
@@ -148,17 +151,21 @@ namespace RedisLib2
                             }
 
                             var range = (RedisValue[])result;
+                            var messageCount = range.Length - 3;
+                            var id = long.Parse(range[messageCount]);
 
-                            var length = range.Length;
-                            Position = long.Parse(range[length - 2]);
-                            Head = long.Parse(range[length - 1]);
+                            if (lastId != -1 && (lastId + messageCount) != id)
+                                throw new MessageLostException();
 
-                            for (var i = 0; i < range.Length - 2; i++)
-                            {
-                                o.OnNext(range[i]);
-                            }
+                            lastId = id;
 
-                            //ack
+                            Position = long.Parse(range[messageCount + 1]);
+                            Head = long.Parse(range[messageCount + 2]);
+
+                            for (var i = 0; i < messageCount; i++)
+                                observer.OnNext(range[i]);
+
+                            //send ack
                             await _db.StringSetAsync(_consumerIdKey, Position);
                         }
                         else
@@ -169,7 +176,7 @@ namespace RedisLib2
                     catch (Exception e)
                     {
                         _running = false;
-                        o.OnError(e);
+                        observer.OnError(e);
                     }
                 }
                 _bc.CompleteAdding();
