@@ -2,12 +2,12 @@
 
 --need to handle null value for head here!!
 if head == nil then
-	return 'NO TOPIC'
+	return 'E'
 end
 
 --producer hasnt started yet so do nothing
 if head == -2 then
-	return 'PRODUCER NOT STARTED'
+	return 'P'
 end
 
 local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId))
@@ -15,12 +15,12 @@ local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @
 --consumer has just started up so sync to head position
 if current == -2 then
 	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, head)
-	return 'CONSUMER STARTED'
+	return 'S'
 end 
 
 --consumer is at the latest message so do nothing
 if current == head then
-	return 'AT HEAD' .. head
+	return 'H' .. head
 end
 
 local result = {}
@@ -55,8 +55,10 @@ while continue do
 end
 
 --update consumer position to reflect the new position
-redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
+--redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
 
+table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', lastRead))
 table.insert(result, lastRead)
 table.insert(result, head)
+
 return result

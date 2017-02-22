@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisLib2", "RedisLib2\RedisLib2.csproj", "{5FF0001D-C034-4D46-9A35-B11E31D43A23}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedQ.NET", "RedisLib2\RedQ.NET.csproj", "{5FF0001D-C034-4D46-9A35-B11E31D43A23}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "ConsoleApplication1\ConsoleApplication1.csproj", "{35F8A6DD-D6A8-4D61-A36D-0307923F8F9F}"
 EndProject

@@ -58,18 +58,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="RedisQueue.cs" />
-    <Compile Include="RingBufferConsumer.cs" />
+    <Compile Include="RingBuffer\RingBufferConsumer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RingBufferProducer.cs" />
+    <Compile Include="RingBuffer\RingBufferProducer.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="consumer.lua">
+    <None Include="RingBuffer\consumer.lua">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="TextFile1.txt" />
+    <None Include="RingBuffer\publish.lua">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

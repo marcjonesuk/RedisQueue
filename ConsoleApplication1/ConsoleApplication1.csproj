@@ -72,9 +72,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\RedisLib2\RedisLib2.csproj">
+    <ProjectReference Include="..\RedisLib2\RedQ.NET.csproj">
       <Project>{5ff0001d-c034-4d46-9a35-b11e31d43a23}</Project>
-      <Name>RedisLib2</Name>
+      <Name>RedQ.NET</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

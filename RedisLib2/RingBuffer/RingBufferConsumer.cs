@@ -15,15 +15,24 @@ namespace RedisLib2
     {
     }
 
+    public class RingBufferCode
+    {
+        public static readonly string AT_HEAD = "H";
+        public static readonly string PRODUCER_NOT_STARTED = "P";
+        public static readonly string CONSUMER_SYNCED = "C";
+        public static readonly string STARTED = "S";
+    }
+
     public class RingBufferConsumer
     {
-        private const long MaxReadSize = 10;
+        private const long MaxReadSize = 100;
         public const long NotStarted = -2;
         private IDatabase _db;
         private LoadedLuaScript _script;
         public event Action<RedisValue> OnMessageReceived;
         private BlockingCollection<string> _bc = new BlockingCollection<string>();
         private bool _running;
+        private string _consumerIdKey;
 
         public long LocalBufferSize
         {
@@ -52,11 +61,11 @@ namespace RedisLib2
 
             _db = db;
             var _key = $"{RingBufferProducer.KeyPrefix}:{topic}";
-            var _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{subscriptionId}";
+            _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{subscriptionId}";
             var _headKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__head";
             var idKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__mid";
 
-            _script = LuaScript.Prepare(File.ReadAllText("consumer.lua")).Load(server);
+            _script = LuaScript.Prepare(File.ReadAllText("RingBuffer/consumer.lua")).Load(server);
             db.StringSet(_consumerIdKey, NotStarted);
         }
 
@@ -114,19 +123,25 @@ namespace RedisLib2
                         var result = await _db.ScriptEvaluateAsync(_script, new { Size = Size, Topic = Topic, SubscriptionId = SubscriptionId, MaxReadSize = MaxReadSize }).ConfigureAwait(false);
                         if (!result.IsNull)
                         {
-                            if (result.ToString().StartsWith("AT HEAD"))
+                            if (result.ToString() == RingBufferCode.AT_HEAD)
                             {
                                 Thread.Sleep(20);
                                 continue;
                             }
 
-                            if (result.ToString() == "PRODUCER NOT STARTED")
+                            if (result.ToString() == RingBufferCode.PRODUCER_NOT_STARTED)
                             {
                                 Thread.Sleep(20);
                                 continue;
                             }
 
-                            if (result.ToString() == "CONSUMER STARTED")
+                            if (result.ToString() == RingBufferCode.CONSUMER_SYNCED)
+                            {
+                                Thread.Sleep(20);
+                                continue;
+                            }
+
+                            if (result.ToString() == RingBufferCode.STARTED)
                             {
                                 Thread.Sleep(20);
                                 continue;
@@ -142,6 +157,9 @@ namespace RedisLib2
                             {
                                 o.OnNext(range[i]);
                             }
+
+                            //ack
+                            await _db.StringSetAsync(_consumerIdKey, Position);
                         }
                         else
                         {
