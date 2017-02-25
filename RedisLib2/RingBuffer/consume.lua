@@ -39,12 +39,12 @@ while continue do
 	end
 	
 	--read the maximum allowed messages so return to allow other consumers to read
-	if resultIndex > tonumber(@MaxReadSize) then
+	if resultIndex > @MaxReadSize then
 		continue = false
 	end 
 
 	--reached the last item in the buffer so wrap around to the start
-	if current == tonumber(@Size) then 
+	if current == @Size then 
 		current = 0
 	end
 
@@ -58,4 +58,7 @@ table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', la
 table.insert(result, lastRead)
 table.insert(result, head)
 
+if @ServerAck == 1 then
+	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
+end
 return result

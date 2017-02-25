@@ -27,7 +27,7 @@ namespace RedisLib2
 
             Size = size;
 
-            _publish = LuaScript.Prepare(File.ReadAllText("RingBuffer/publish.lua")).Load(server);
+            _publish = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("RingBuffer/publish.lua"))).Load(server);
             //clear the ringbuffer - should make this optional
             Clear();
         }
@@ -39,18 +39,29 @@ namespace RedisLib2
             _db.StringSet(_idKey, 0);
         }
 
+        private string ScriptPreprocessor(string script)
+        {
+            script = script.Replace("@Size", $"{Size}");
+            script = script.Replace("@Topic", $"'{Topic}'");
+            return script;
+        }
+
         public Task Publish(RedisValue value)
         {
-            return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Size = Size, Value = value, Topic = Topic });
+            return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Value = value });
+        }
+
+        public Task Publish(string key, RedisValue value)
+        {
+            return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Value = value});
         }
 
         public long Size { get; private set; }
 
         private struct PublishRequest
         {
+            public string Key;
             public RedisValue Value;
-            public long Size;
-            public string Topic;
         }
     }
 }

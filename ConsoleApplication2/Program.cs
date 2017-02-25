@@ -29,13 +29,14 @@ namespace ConsoleApplication2
 
             queue.Subscribe(a =>
             {
-                dynamic data = JsonConvert.DeserializeObject<ExpandoObject>(a);
-                if (last != null && data.Count - 1 != last)
-                {
-                }
+                //dynamic data = JsonConvert.DeserializeObject<ExpandoObject>(a);
+                //if (last != null && data.Count - 1 != last)
+                //{
+                //}
                 b++;
                 if (sw.ElapsedMilliseconds > 1000)
                 {
+                    dynamic data = JsonConvert.DeserializeObject<ExpandoObject>(a);
                     var latency = (DateTime.UtcNow - (DateTime)data.Time);
                     Console.WriteLine(q + "    " + Math.Round(latency.TotalMilliseconds, 0) + "     " + ((double)b * 1000 / (double)sw.ElapsedMilliseconds) + "   " + queue.Length + "                   ");
                     sw.Reset();
@@ -43,7 +44,7 @@ namespace ConsoleApplication2
                     b = 0;
                 }
 
-                last = data.Count;
+                //last = data.Count;
             });
         }
 
@@ -52,67 +53,44 @@ namespace ConsoleApplication2
             //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
             //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-            var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer1");
 
-            //for (int i = 2; i <= 3; i++)
-            //{
-            //    var consumer2 = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer" + i);
-            //    long x2 = 0;
-            //    consumer2.AsObservable().Subscribe(x =>
-            //    {
-            //        x2++;
-            //    });
-            //}
-
-            long old = -1;
-            bool hadone = false;
-
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-
-            var count = 0;
-            var c2 = 0;
-
-            ring.AsObservable().Subscribe((a) =>
+            for (int i = 1; i <= 1; i++)
             {
-                count++;
-                c2++;
+                var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer" + i, new ConsumerOptions(AckMode.Server, 100000, 500000));
+                long old = -1;
+                bool hadone = false;
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
+                var count = 0;
+                var c2 = 0;
 
-                dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
-
-                var num = x.Count; // long.Parse(a);
-
-                if (hadone && num != old + 1)
-                    Console.WriteLine("error");
-
-                old = num;
-                hadone = true;
-                //Thread.Sleep(1);
-                if (sw.ElapsedMilliseconds > 1000)
+                ring.AsObservable().Subscribe((a) =>
                 {
-                    Console.WriteLine(x.Time - DateTime.UtcNow);
-                    var amount = (count * 1000) / sw.ElapsedMilliseconds;
-                    Console.WriteLine("\r" + amount + "             " + a + "            " + ring.LocalBufferSize);
-                    count = 0;
-                    sw.Reset();
-                    sw.Start();
-                }
+                    count++;
+                    c2++;
 
-                //if (c2 % 10000 == 0)
-                //{
-                //    Console.WriteLine(c2);
-                //    Console.WriteLine(a);
-                //}
-            }, (Exception e) =>
-            {
-                Console.WriteLine(e);
-            });
+                    //dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
+                    //var num = x.Count; // long.Parse(a);
+                    //if (hadone && num != old + 1)
+                    //    Console.WriteLine("error");
+                    //old = num;
+                    //hadone = true;
+                    //Thread.Sleep(1);
+                    if (sw.ElapsedMilliseconds > 1000)
+                    {
+                        dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
 
-            //var qwe = 0;
-            //ring.AsObservable().Subscribe((a) =>
-            //{
-            //    qwe++;
-            //});
+                        var amount = (count * 1000) / sw.ElapsedMilliseconds;
+                        Console.Write($"\r  {((TimeSpan)(DateTime.UtcNow - x.Time)).TotalMilliseconds} c" + i + "   " + amount + "             " + a + "            ");
+                        count = 0;
+                        sw.Reset();
+                        sw.Start();
+                    }
+                }, (Exception e) =>
+                {
+                    Console.WriteLine(e);
+                });
+            }
         }
 
         static void Main(string[] args)
