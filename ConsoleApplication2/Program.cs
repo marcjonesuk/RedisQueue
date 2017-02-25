@@ -58,8 +58,8 @@ namespace ConsoleApplication2
 
             for (int i = 1; i <= 1; i++)
             {
-                var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer" + i, 
-                    new ConsumerOptions(AckMode.OnDeliver, 50000, 50000));
+                var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 1000000, "consumer" + Guid.NewGuid().ToString(), 
+                    new ConsumerOptions(AckMode.Process, 10000, 10000));
 
                 long old = -1;
                 bool hadone = false;

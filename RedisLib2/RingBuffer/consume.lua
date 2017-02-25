@@ -43,7 +43,7 @@ while continue do
 	end 
 
 	--reached the last item in the buffer so wrap around to the start
-	if current == @Size then 
+	if current == @Size - 1 then 
 		current = 0
 	end
 

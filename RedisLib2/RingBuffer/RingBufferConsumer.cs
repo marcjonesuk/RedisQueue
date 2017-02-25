@@ -24,8 +24,8 @@ namespace RedisLib2
     public enum AckMode
     {
         Server,
-        OnDeliver,
-        OnProcess
+        Deliver,
+        Process
     }
 
     public class ConsumerOptions
@@ -67,7 +67,7 @@ namespace RedisLib2
         {
             if (options == null)
             {
-                options = new ConsumerOptions(AckMode.OnDeliver, 10000, 5000);
+                options = new ConsumerOptions(AckMode.Deliver, 10000, 5000);
             }
             Options = options;
             Topic = topic;
@@ -152,7 +152,7 @@ namespace RedisLib2
                                     || s == RingBufferCode.CONSUMER_SYNCED 
                                     || s == RingBufferCode.STARTED)
                             {
-                                Thread.Sleep(1);
+                                Thread.Sleep(10);
                                 continue;
                             }
 
@@ -160,15 +160,15 @@ namespace RedisLib2
                             var messageCount = range.Length - 3;
                             var id = long.Parse(range[messageCount]);
 
-                            if (lastId != -1 && (lastId + messageCount) != id)
-                                throw new MessageLostException();
+                            //if (lastId != -1 && (lastId + messageCount) != id)
+                            //    throw new MessageLostException();
 
                             lastId = id;
 
                             Position = long.Parse(range[messageCount + 1]);
                             Head = long.Parse(range[messageCount + 2]);
 
-                            if (Options.AckMode == AckMode.OnProcess)
+                            if (Options.AckMode == AckMode.Process)
                             {
                                 for (var i = 0; i < messageCount; i++)
                                     observer.OnNext(range[i]);
@@ -183,7 +183,7 @@ namespace RedisLib2
                         }
                         else
                         {
-                            Thread.Sleep(1);
+                            Thread.Sleep(10);
                         }
                     }
                     catch (Exception e)
