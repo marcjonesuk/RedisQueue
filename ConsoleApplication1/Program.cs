@@ -19,43 +19,43 @@ namespace ConsoleApplication1
             var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
             //var buffer2 = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
 
-            var persec = 10000;
-
+            var batch = 10;
+            Thread.Sleep(1500);
             var numpros = 1;
-            for (var pro = 0; pro < numpros; pro++)
+            long c = -1;
+
+            for (var p = 0; p <= numpros; p++)
             {
-                var pro2 = pro;
-                Task.Run(() =>
+                Thread t = new Thread((s) => 
                 {
-                    for (var p = 0; p < 1; p++)
+                    var p2 = p;
+                    while (true)
                     {
-                        List<Task> t = new List<Task>();
-                        Task.Run(() =>
+                        sw.Reset();
+                        sw.Start();
+                        List<Task> ts = new List<Task>();
+                        for (var i = 0; i < batch; i++)
                         {
-                            long c = -1;
-                            while (true)
-                            {
-                                sw.Reset();
-                                sw.Start();
-                                for (var i = 0; i < persec; i++)
-                                {
-                                    c++;
-                                    var payload = JsonConvert.SerializeObject(new { Producer = pro2, Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 0)});
-                                    t.Add(buffer.Publish(payload));
+                            Interlocked.Increment(ref c);
+                            var payload = JsonConvert.SerializeObject(new { Producer = p2, Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 0) });
+                            ts.Add(buffer.Publish(payload));
 
-                                    if (c % 10000 == 0)
-                                        Console.WriteLine(c);
-                                }
+                            //buffer.Publish(payload);
+                            if (c % 10000 == 0)
+                                Console.WriteLine(c);
+                        }
 
-                                Task.WaitAll(t.ToArray());
-                                t.Clear();
+                        Task.WaitAll(ts.ToArray());
+                        ts.Clear();
 
-                                var sleep = (int) Math.Max(1000 - sw.ElapsedMilliseconds, 0);
-                                Thread.Sleep(sleep);
-                            }
-                        });
+                        //Thread.Sleep(100);
+                        //var sleep = (int)Math.Max(1000 - sw.ElapsedMilliseconds, 0);
+                        //Thread.Sleep(sleep);
+                        //if (sleep == 0)
+                        //    Console.WriteLine("Missed");
                     }
                 });
+                t.Start();
             }
 
             Console.ReadLine();

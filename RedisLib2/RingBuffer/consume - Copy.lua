@@ -1,5 +1,6 @@
 ﻿local head = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':__head'))
 
+--need to handle null value for head here!!
 if head == nil then
 	return 'E'
 end

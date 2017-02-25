@@ -63,6 +63,9 @@
     <Compile Include="RingBuffer\RingBufferProducer.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="RingBuffer\consume - Copy.lua">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="RingBuffer\consume.lua">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

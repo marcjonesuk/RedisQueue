@@ -49,7 +49,6 @@ namespace RedisLib2
 
     public class RingBufferConsumer
     {
-        private const long MaxReadSize = 5000;
         public const long NotStarted = -2;
         private IDatabase _db;
         private LoadedLuaScript _script;
@@ -85,12 +84,7 @@ namespace RedisLib2
             _script = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("RingBuffer/consume.lua"))).Load(server);
             db.StringSet(_consumerIdKey, NotStarted);
         }
-
-        //public void Start()
-        //{
-        //    BeginConsuming();
-        //}
-
+        
         private void BeginProcessing(IObserver<RedisValue> observer)
         {
             if (_running)
@@ -130,8 +124,6 @@ namespace RedisLib2
             return _observable;
         }
 
-        private long lastId = -1;
-
         private string ScriptPreprocessor(string script)
         {
             script = script.Replace("@Size", $"{Size}");
@@ -142,6 +134,7 @@ namespace RedisLib2
             return script;
         }
 
+        private long lastId = -1;
         public void BeginConsuming(IObserver<RedisValue> observer)
         {
             Task.Run(async () =>
@@ -159,6 +152,7 @@ namespace RedisLib2
                                     || s == RingBufferCode.CONSUMER_SYNCED 
                                     || s == RingBufferCode.STARTED)
                             {
+                                Thread.Sleep(1);
                                 continue;
                             }
 
@@ -174,24 +168,23 @@ namespace RedisLib2
                             Position = long.Parse(range[messageCount + 1]);
                             Head = long.Parse(range[messageCount + 2]);
 
-                            if (Options.AckMode == AckMode.OnDeliver)
-                            {
-                                for (var i = 0; i < messageCount; i++)
-                                    _bc.Add(range[i]);
-                            }
-                            else
+                            if (Options.AckMode == AckMode.OnProcess)
                             {
                                 for (var i = 0; i < messageCount; i++)
                                     observer.OnNext(range[i]);
                             }
+                            else { 
+                                for (var i = 0; i < messageCount; i++)
+                                    _bc.Add(range[i]);
+                            }
 
-                            if (Options.AckMode == AckMode.OnDeliver)
-                                await _db.StringSetAsync(_consumerIdKey, Position);
+                            if (Options.AckMode != AckMode.Server)
+                                await _db.StringSetAsync(_consumerIdKey, Position).ConfigureAwait(false);
                         }
-                        //else
-                        //{
-                        //    Thread.Sleep(1);
-                        //}
+                        else
+                        {
+                            Thread.Sleep(1);
+                        }
                     }
                     catch (Exception e)
                     {

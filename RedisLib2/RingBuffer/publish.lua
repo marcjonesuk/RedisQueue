@@ -5,4 +5,4 @@ if head == @Size then
     redis.call('SET', '__ringbuffer:' .. @Topic .. ':head', 0)
 end
 redis.call('HSET', '__ringbuffer:' .. @Topic, head, @Value)
---redis.call('HSET', '__ringbuffer:' .. @Topic .. ':__id' , head, id)
+redis.call('HSET', '__ringbuffer:' .. @Topic .. ':__id' , head, id)
