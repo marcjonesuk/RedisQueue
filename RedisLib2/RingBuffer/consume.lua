@@ -22,6 +22,11 @@ if current == head then
 	return 'H'
 end
 
+--need to check this is correct
+if current <= (head - @Size - @MaxReadSize) then
+	return 'L'
+end
+
 local result = {}
 local resultIndex = 0
 
@@ -46,7 +51,6 @@ while continue do
 	end 
 end
 
-table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', lastRead % @Size))
 table.insert(result, lastRead)
 table.insert(result, head)
 

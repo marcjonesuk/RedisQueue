@@ -13,12 +13,17 @@ namespace RedisLib2
     {
     }
 
-    public class RingBufferCode
+    public class ConsumerLappedException : Exception
+    {
+    }
+
+    public class RingBufferResponse
     {
         public static readonly string AT_HEAD = "H";
         public static readonly string PRODUCER_NOT_STARTED = "P";
         public static readonly string CONSUMER_SYNCED = "C";
         public static readonly string STARTED = "S";
+        public static readonly string LAPPED = "L";
     }
 
     public enum AckMode
@@ -74,10 +79,8 @@ namespace RedisLib2
             var _key = $"{RingBufferProducer.KeyPrefix}:{topic}";
             _consumerIdKey = $"{RingBufferProducer.KeyPrefix}:{topic}:{subscriptionId}";
             var _headKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__head";
-            var idKey = $"{RingBufferProducer.KeyPrefix}:{topic}:__mid";
 
             _script = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("RingBuffer/consume.lua"))).Load(server);
-            db.StringSet(_consumerIdKey, NotStarted);
         }
         
         private void BeginProcessing(IObserver<RedisValue> observer)
@@ -105,12 +108,23 @@ namespace RedisLib2
         }
 
         private IObservable<RedisValue> _observable;
-        public IObservable<RedisValue> AsObservable()
+        public IObservable<RedisValue> AsObservable(long? offset = null)
         {
             if (_observable == null)
             {
-                _observable = Observable.Create((IObserver<RedisValue> observer) =>
+                _observable = Observable.Create(async (IObserver<RedisValue> observer) =>
                {
+                   if (offset != null)
+                   {
+                       var head = await _db.StringGetAsync($"__ringbuffer:{Topic}:__head");
+                       var start = Math.Max(long.Parse(head) - offset.Value, 0);
+                       await _db.StringSetAsync($"__ringbuffer:{Topic}:{SubscriptionId}", start);
+                   }
+                   else
+                   {
+                       await _db.StringSetAsync($"__ringbuffer:{Topic}:{SubscriptionId}", NotStarted);
+                   }
+
                    BeginProcessing(observer);
                    BeginConsuming(observer);
                    return Disposable.Create(() => { _running = false; });
@@ -142,24 +156,20 @@ namespace RedisLib2
                         if (!result.IsNull)
                         {
                             var s = result.ToString();
-                            if (s == RingBufferCode.AT_HEAD 
-                                    || s == RingBufferCode.PRODUCER_NOT_STARTED
-                                    || s == RingBufferCode.CONSUMER_SYNCED 
-                                    || s == RingBufferCode.STARTED)
+                            if (s == RingBufferResponse.AT_HEAD 
+                                    || s == RingBufferResponse.PRODUCER_NOT_STARTED
+                                    || s == RingBufferResponse.CONSUMER_SYNCED 
+                                    || s == RingBufferResponse.STARTED)
                             {
                                 Thread.Sleep(10);
                                 continue;
                             }
 
+                            if (s == RingBufferResponse.LAPPED)
+                                throw new ConsumerLappedException();
+
                             var range = (RedisValue[])result;
-                            var messageCount = range.Length - 3;
-                            //var id = long.Parse(range[messageCount]);
-
-                            //if (lastId != -1 && (lastId + messageCount) != id)
-                            //    throw new MessageLostException();
-
-                            //lastId = id;
-
+                            var messageCount = range.Length - 2;
                             Position = long.Parse(range[messageCount + 1]);
                             Head = long.Parse(range[messageCount + 2]);
 

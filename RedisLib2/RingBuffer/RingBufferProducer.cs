@@ -29,14 +29,14 @@ namespace RedisLib2
 
             _publish = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("RingBuffer/publish.lua"))).Load(server);
             //clear the ringbuffer - should make this optional
-            Clear();
+            Clear().Wait();
         }
 
-        public void Clear()
+        public async Task Clear()
         {
-            _db.KeyDelete(_key);
-            _db.StringSet(_headKey, NotStarted);
-            _db.StringSet(_idKey, 0);
+            await _db.KeyDeleteAsync(_key);
+            await _db.StringSetAsync(_headKey, NotStarted);
+            await _db.StringSetAsync(_idKey, 0);
         }
 
         private string ScriptPreprocessor(string script)
