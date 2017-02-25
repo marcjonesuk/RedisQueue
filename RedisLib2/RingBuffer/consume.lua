@@ -29,6 +29,9 @@ local continue = true
 local lastRead = current
 
 while continue do
+	result[resultIndex] = redis.call('HGET', '__ringbuffer:' .. @Topic, current % @Size)
+	lastRead = current
+
 	current = current + 1
 	resultIndex = resultIndex + 1
 
@@ -41,19 +44,9 @@ while continue do
 	if resultIndex > @MaxReadSize then
 		continue = false
 	end 
-
-	--reached the last item in the buffer so wrap around to the start
-	if current == @Size - 1 then 
-		current = 0
-	end
-
-	if continue then
-		result[resultIndex] = redis.call('HGET', '__ringbuffer:' .. @Topic, current)
-		lastRead = current
-	end
 end
 
-table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', lastRead))
+table.insert(result, redis.call('HGET', '__ringbuffer:' .. @Topic .. ':__id', lastRead % @Size))
 table.insert(result, lastRead)
 table.insert(result, head)
 

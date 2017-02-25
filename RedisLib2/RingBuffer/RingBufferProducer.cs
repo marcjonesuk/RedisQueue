@@ -51,6 +51,11 @@ namespace RedisLib2
             return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Value = value });
         }
 
+        public Task<long> Publish2(RedisValue value)
+        {
+            return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Value = value }).ContinueWith(t => long.Parse((string)t.Result));
+        }
+
         public Task Publish(string key, RedisValue value)
         {
             return _db.ScriptEvaluateAsync(_publish, new PublishRequest() { Value = value});

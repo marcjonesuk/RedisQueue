@@ -16,7 +16,7 @@ namespace ConsoleApplication1
         {
             Stopwatch sw = new Stopwatch();
             //var buffer = new RedisCircularBuffer(redis.GetDatabase(), redis.GetServer("DDBRDS001.spreadex.com:6381"), 1000000, "testbuffer", null);
-            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
+            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1048576);
             //var buffer2 = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 1000000);
 
             var batch = 10;
@@ -26,9 +26,10 @@ namespace ConsoleApplication1
 
             for (var p = 0; p <= numpros; p++)
             {
-                Thread t = new Thread((s) => 
-                {
+                //Thread t = new Thread(async (s) => 
+                //{
                     var p2 = p;
+                    long lastsent = 0;
                     while (true)
                     {
                         sw.Reset();
@@ -36,11 +37,14 @@ namespace ConsoleApplication1
                         List<Task> ts = new List<Task>();
                         for (var i = 0; i < batch; i++)
                         {
-                            Interlocked.Increment(ref c);
-                            var payload = JsonConvert.SerializeObject(new { Producer = p2, Time = DateTime.UtcNow, Count = c, Padding = Enumerable.Range(0, 0) });
+                            var d = Interlocked.Increment(ref c);
+                            var payload = JsonConvert.SerializeObject(new { Producer = p2, Time = DateTime.UtcNow, Count = d, Padding = Enumerable.Range(0, 0) });
                             ts.Add(buffer.Publish(payload));
 
-                            //buffer.Publish(payload);
+                            //if (lastsent != 0 && x!= lastsent + 1)
+                            //{
+                            //}
+                            //lastsent = x;
                             if (c % 10000 == 0)
                                 Console.WriteLine(c);
                         }
@@ -54,8 +58,8 @@ namespace ConsoleApplication1
                         //if (sleep == 0)
                         //    Console.WriteLine("Missed");
                     }
-                });
-                t.Start();
+                //});
+                //t.Start();
             }
 
             Console.ReadLine();

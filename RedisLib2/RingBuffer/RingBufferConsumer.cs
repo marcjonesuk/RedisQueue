@@ -41,12 +41,7 @@ namespace RedisLib2
             MaxReadSize = maxReadSize;
         }
     }
-
-    public class Consumer
-    {
-
-    }
-
+    
     public class RingBufferConsumer
     {
         public const long NotStarted = -2;
@@ -158,12 +153,12 @@ namespace RedisLib2
 
                             var range = (RedisValue[])result;
                             var messageCount = range.Length - 3;
-                            var id = long.Parse(range[messageCount]);
+                            //var id = long.Parse(range[messageCount]);
 
                             //if (lastId != -1 && (lastId + messageCount) != id)
                             //    throw new MessageLostException();
 
-                            lastId = id;
+                            //lastId = id;
 
                             Position = long.Parse(range[messageCount + 1]);
                             Head = long.Parse(range[messageCount + 2]);
