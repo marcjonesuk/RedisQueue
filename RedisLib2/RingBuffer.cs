@@ -1,22 +1,9 @@
 ﻿using StackExchange.Redis;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace RedisLib2
 {
-    public class InvalidQueueException : Exception
-    {
-        public InvalidQueueException(string message) : base(message)
-        {
-        }
-
-        public InvalidQueueException(string message, Exception innerException) : base(message, innerException)
-        {
-        }
-    }
 
     public class RingBuffer
     {
@@ -177,9 +164,9 @@ namespace RedisLib2
         /// </summary>
         /// <param name="options">Custom configuration options for the consumer. The default values will be used if this parameter is omitted</param>
         /// <returns></returns>
-        public Consumer CreateConsumer(ConsumerOptions options = null)
+        public IObservable<Message> CreateConsumer(StartFrom? from = null, long? value = null, ConsumerOptions options = null)
         {
-            return new Consumer(this, options);
+            return ConsumerFactory.Create(this, options, from, value);
         }
 
         public Task<long> GetHeadPosition()

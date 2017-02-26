@@ -1,5 +1,6 @@
 using StackExchange.Redis;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -8,26 +9,6 @@ using System.Threading.Tasks;
 
 namespace RedisLib2
 {
-    public class MessageLostException : Exception
-    {
-    }
-
-    public class ConsumerLappedException : Exception
-    {
-    }
-
-    public class ScriptManager
-    {
-    }
-
-    public enum From
-    {
-        Message,
-        Offset,
-        LastAcked,
-        Head
-    }
-
     public class Consumer
     {
         public RingBuffer Queue { get; private set; }
@@ -36,8 +17,11 @@ namespace RedisLib2
 
         private LoadedLuaScript _script;
         private bool _running;
+        private bool _started;
         private ConsumerOptions _options;
         private string _subscriptionPositionKey;
+
+        private List<IObserver<Message>> _observers = new List<IObserver<Message>>();
 
         internal Consumer(RingBuffer queue, ConsumerOptions options = null)
         {
@@ -52,67 +36,6 @@ namespace RedisLib2
             _script = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("Scripts/consume.lua"))).Load(Queue.Server);
         }
 
-        private bool _started;
-        private IObservable<Message> _observable;
-        public IObservable<Message> Start(From? startFrom = null, long? value = null)
-        {
-            if (startFrom == null)
-                startFrom = From.Head;
-
-            return Observable.Create(async (IObserver<Message> observer) =>
-            {
-                if (!_started)
-                {
-                    _started = true;
-                    if (!_running)
-                    {
-                        _running = true;
-                        switch (startFrom)
-                        {
-                            case From.Head:
-                                await Queue.Database.StringSetAsync(_subscriptionPositionKey, RingBuffer.StartAtHead);
-                                break;
-
-                            case From.Offset:
-                                if (!value.HasValue)
-                                    throw new ArgumentNullException(nameof(value));
-
-                                var head = await Queue.GetHeadPosition();
-                                var start = Math.Max(head - value.Value, -1);
-                                await Queue.Database.StringSetAsync(_subscriptionPositionKey, start);
-                                break;
-
-                            case From.Message:
-                                if (!value.HasValue)
-                                    throw new ArgumentNullException(nameof(value));
-
-                                throw new NotSupportedException("StartFrom.Message");
-
-                            case From.LastAcked:
-                                throw new NotSupportedException("StartFrom.Last");
-                        }
-
-                       //if (offset != null)
-                       //{
-                       //    var head = await Queue.GetHeadPosition();
-                       //    var start = Math.Max(head - offset.Value, -1);
-                       //    await Queue.Database.StringSetAsync(_subscriptionPositionKey, start);
-                       //}
-
-                       //{
-                       //    await Queue.Database.StringSetAsync(_subscriptionPositionKey, RingBuffer.StartAtHead);
-                       //}
-
-                       //BeginConsuming(observer);
-                   }
-                }
-                return Disposable.Create(() =>
-                {
-                    _running = false;
-                });
-            });
-        }
-
         private string ScriptPreprocessor(string script)
         {
             script = script.Replace("@Length", $"{Queue.Length}");
@@ -125,9 +48,72 @@ namespace RedisLib2
             return script;
         }
 
-        private void BeginConsuming(IObserver<Message> observer)
+        public void AddObserver(IObserver<Message> o)
         {
-            Task.Run(async () =>
+            lock (_observers)
+            {
+                _observers.Add(o);
+
+                if (!_running)
+                {
+                    _running = true;
+                }
+
+                if (!_started)
+                {
+                    _started = true;
+                    BeginConsuming();
+                }
+            }
+        }
+
+        public void RemoveObserver(IObserver<Message> o)
+        {
+            lock (_observers)
+            {
+                _observers.Remove(o);
+                if (_observers.Count == 0)
+                {
+                    _running = false;
+                }
+            }
+        }
+
+        public StartFrom? StartFrom { get; set; }
+        public long? StartFromValue { get; set; }
+
+        public async Task UpdateStartLocation()
+        {
+            switch (StartFrom)
+            {
+                case RedisLib2.StartFrom.Head:
+                    await Queue.Database.StringSetAsync(_subscriptionPositionKey, RingBuffer.StartAtHead);
+                    break;
+
+                case RedisLib2.StartFrom.Offset:
+                    if (!StartFromValue.HasValue)
+                        throw new ArgumentNullException(nameof(Consumer.StartFromValue));
+
+                    var head = await Queue.GetHeadPosition();
+                    var start = Math.Max(head - StartFromValue.Value, -1);
+                    await Queue.Database.StringSetAsync(_subscriptionPositionKey, start);
+                    break;
+
+                case RedisLib2.StartFrom.Message:
+                    if (!StartFromValue.HasValue)
+                        throw new ArgumentNullException(nameof(Consumer.StartFromValue));
+
+                    throw new NotSupportedException("StartFrom.Message");
+
+                case RedisLib2.StartFrom.LastAcked:
+                    throw new NotSupportedException("StartFrom.Last");
+            }
+        }
+
+        private async Task BeginConsuming()
+        {
+            await UpdateStartLocation();
+            await Task.Run(async () =>
             {
                 while (_running)
                 {
@@ -154,15 +140,23 @@ namespace RedisLib2
                             Cursor = long.Parse(range[messageCount * 2]);
                             Head = long.Parse(range[messageCount * 2 + 1]);
 
-                            if (_options.AckMode == AckMode.Batch || _options.AckMode == AckMode.Message)
+                            lock (_observers)
                             {
-                                var startMessageId = Cursor - messageCount + 1;
-                                for (var i = 0; i < messageCount; i++)
+                                if (_options.AckMode == AckMode.Batch || _options.AckMode == AckMode.Message)
                                 {
-                                    observer.OnNext(new Message() { Key = range[i], Value = range[2 * i + 1], MessageId = startMessageId + i });
-                                    if (_options.AckMode == AckMode.Message)
+                                    var startMessageId = Cursor - messageCount + 1;
+                                    for (var i = 0; i < messageCount; i++)
                                     {
-                                        //todo
+                                        var message = new Message() { Key = range[i * 2], Value = range[2 * i + 1], MessageId = startMessageId + i };
+                                        foreach (var o in _observers)
+                                        {
+                                            o.OnNext(message);
+                                        }
+
+                                        if (_options.AckMode == AckMode.Message)
+                                        {
+                                            //todo
+                                        }
                                     }
                                 }
                             }
@@ -178,7 +172,11 @@ namespace RedisLib2
                     catch (Exception e)
                     {
                         _running = false;
-                        observer.OnError(e);
+                        lock (_observers)
+                        {
+                            foreach (var o in _observers)
+                                o.OnError(e);
+                        }
                     }
                 }
             });

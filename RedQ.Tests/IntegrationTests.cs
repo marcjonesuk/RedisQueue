@@ -40,7 +40,7 @@ namespace RedQ.Tests
             var ringbuffer = await RingBuffer.GetOrCreateAsync(_server, _database, "First_message_should_have_id_0", 10);
             var producer = ringbuffer.CreateProducer();
             await producer.Publish("key", "value");
-            var message = await ringbuffer.CreateConsumer().Start(From.Offset, 1).Take(1);
+            var message = await ringbuffer.CreateConsumer(StartFrom.Offset, 1).Take(1);
 
             Assert.AreEqual(0, message.MessageId);
         }
@@ -62,7 +62,7 @@ namespace RedQ.Tests
                   producer.Publish("key", $"value{i}");
               });
 
-            var message = await ringbuffer.CreateConsumer().Start().Take(1);
+            var message = await ringbuffer.CreateConsumer().Take(1);
             running = false;
             Assert.AreEqual(15, message.MessageId);
         }
@@ -82,23 +82,26 @@ namespace RedQ.Tests
             await producer1.Publish("key", "p1:value4");
             await producer2.Publish("key", "p2:value5");
 
-            var message = await ringbuffer.CreateConsumer().Start(From.Offset, 1).Take(1);
+            var message = await ringbuffer.CreateConsumer(StartFrom.Offset, 1).Take(1);
 
             Assert.AreEqual(4, message.MessageId);
             Assert.AreEqual("p2:value5", message.Value.ToString());
         }
 
         [TestMethod]
-        public async Task Key_and_value_are_correct()
+        public async Task Key_and_value_are_read_from_batch()
         {
             await RingBuffer.DeleteAsync(_database, "Key_and_value_are_correct");
             var ringbuffer = await RingBuffer.GetOrCreateAsync(_server, _database, "Key_and_value_are_correct", 10);
             var producer = ringbuffer.CreateProducer();
-            await producer.Publish("key", "value");
-            var message = await ringbuffer.CreateConsumer().Start(From.Offset, 1).Take(1);
 
-            Assert.AreEqual("key", message.Key);
-            Assert.AreEqual("value", message.Value.ToString());
+            for (var m = 0; m < 5; m++)
+                await producer.Publish($"key{m}", $"value{m}");
+
+            var message = await ringbuffer.CreateConsumer(StartFrom.Offset, 5).Skip(4).Take(1);
+
+            Assert.AreEqual("key4", message.Key);
+            Assert.AreEqual("value4", message.Value.ToString());
         }
 
         [TestMethod]
@@ -111,7 +114,7 @@ namespace RedQ.Tests
             for (var i = 0; i < 15; i++)
                 await producer.Publish("key", "value");
 
-            var message = await ringbuffer.CreateConsumer().Start(From.Offset, 1).Take(1);
+            var message = await ringbuffer.CreateConsumer(StartFrom.Offset, 1).Take(1);
 
             Assert.AreEqual(14, message.MessageId);
         }
@@ -126,7 +129,7 @@ namespace RedQ.Tests
             for (var i = 0; i < 3; i++)
                 await producer.Publish("key", "value");
 
-            var consumer = ringbuffer.CreateConsumer().Start(From.Offset, 5);
+            var consumer = ringbuffer.CreateConsumer(StartFrom.Offset, 5);
             var message = await consumer.Take(1);
 
             Assert.AreEqual(0, message.MessageId);
@@ -153,8 +156,8 @@ namespace RedQ.Tests
             await RingBuffer.DeleteAsync(_database, "Consumers_with_different_subscription_ids_should_not_affect_each_other");
             var ringbuffer = await RingBuffer.GetOrCreateAsync(_server, _database, "Consumers_with_different_subscription_ids_should_not_affect_each_other", 10);
             var producer = ringbuffer.CreateProducer();
-            var consumer1 = ringbuffer.CreateConsumer().Start(From.Offset, 1);
-            var consumer2 = ringbuffer.CreateConsumer().Start(From.Offset, 1);
+            var consumer1 = ringbuffer.CreateConsumer(StartFrom.Offset, 1);
+            var consumer2 = ringbuffer.CreateConsumer(StartFrom.Offset, 1);
 
             for (var i = 0; i < 10; i++)
                 await producer.Publish("key", $"value:{i}");
@@ -166,7 +169,15 @@ namespace RedQ.Tests
             Assert.AreEqual(9, m2.MessageId);
         }
 
-
+        //[TestMethod]
+        //public async Task Disposing_of_a_subscriber_doesnt_affect_other_consumers()
+        //{
+        //    await RingBuffer.DeleteAsync(_database, "Consumers_with_different_subscription_ids_should_not_affect_each_other");
+        //    var ringbuffer = await RingBuffer.GetOrCreateAsync(_server, _database, "Consumers_with_different_subscription_ids_should_not_affect_each_other", 10);
+        //    var producer = ringbuffer.CreateProducer();
+        //    var observable = ringbuffer.CreateConsumer(StartFrom.Offset, 1);
+        //    consumer.Subscribe().Dispose();
+        //}
 
 
         //[TestMethod]

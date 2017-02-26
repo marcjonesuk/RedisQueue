@@ -31,7 +31,12 @@ namespace ConsoleApplication2
                 var c2 = 0;
                 var latency = 0d;
 
-                consumer.Start()
+                consumer.Subscribe((b) =>
+                {
+
+                });
+
+                consumer
                     .Subscribe((a) =>
                     {
                         try

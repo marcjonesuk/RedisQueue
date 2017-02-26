@@ -21,7 +21,7 @@ namespace ConsoleApplication1
             var queue = RingBuffer.GetOrCreateAsync(redis.GetServer("localhost:6379"), redis.GetDatabase(), "testbuffer", 1000000).Result;
             var producer = queue.CreateProducer();
 
-            var batch = 10;
+            var batch = 100;
             var numpros = 1;
             long c = -1;
 
