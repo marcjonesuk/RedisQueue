@@ -1,4 +1,4 @@
-﻿local head = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':__head'))
+﻿local head = tonumber(redis.call('GET', @HeadKey))
 
 if head == nil then
 	return 'E'
@@ -9,11 +9,11 @@ if head == -2 then
 	return 'P'
 end
 
-local current = tonumber(redis.call('GET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId))
+local current = tonumber(redis.call('GET', @SubscriptionKey))
 
 --consumer has just started up so sync to head position
 if current == -2 then
-	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, head)
+	redis.call('SET', @SubscriptionKey, head)
 	return 'S'
 end 
 
@@ -29,12 +29,13 @@ end
 
 local result = {}
 local resultIndex = 0
-
-local continue = true
+current = current + 1
 local lastRead = current
+local continue = true
 
 while continue do
-	result[resultIndex] = redis.call('HGET', '__ringbuffer:' .. @Topic, current % @Size)
+	table.insert(result, redis.call('HGET', @KeyKey, current % @Size))
+	table.insert(result, redis.call('HGET', @DataKey, current % @Size))
 	lastRead = current
 
 	current = current + 1
@@ -46,7 +47,7 @@ while continue do
 	end
 	
 	--read the maximum allowed messages so return to allow other consumers to read
-	if resultIndex > @MaxReadSize then
+	if resultIndex == @MaxReadSize then
 		continue = false
 	end 
 end
@@ -55,6 +56,6 @@ table.insert(result, lastRead)
 table.insert(result, head)
 
 if @ServerAck == 1 then
-	redis.call('SET', '__ringbuffer:' .. @Topic .. ':' .. @SubscriptionId, lastRead)
+	redis.call('SET', @SubscriptionKey, lastRead)
 end
 return result

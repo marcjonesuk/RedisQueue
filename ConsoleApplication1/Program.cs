@@ -8,6 +8,8 @@ using RedisLib2;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Text;
+using System.Dynamic;
+using System.Reactive.Linq;
 
 namespace ConsoleApplication1
 {
@@ -15,11 +17,10 @@ namespace ConsoleApplication1
     {
         public static void Circular(ConnectionMultiplexer redis)
         {
-            Stopwatch sw = new Stopwatch();
-            //var buffer = new RedisCircularBuffer(redis.GetDatabase(), redis.GetServer("DDBRDS001.spreadex.com:6381"), 1000000, "testbuffer", null);
-            var buffer = new RingBufferProducer(redis.GetDatabase(), redis.GetServer("localhost:6379"), "testbuffer", 100000);
+            var queue = RedQ.GetOrCreateAsync(redis.GetServer("localhost:6379"), redis.GetDatabase(), "testbuffer", 100000).Result;
+            var producer = queue.CreateProducer();
 
-            var batch = 10;
+            var batch = 100;
             Thread.Sleep(1500);
             var numpros = 1;
             long c = -1;
@@ -30,23 +31,30 @@ namespace ConsoleApplication1
                 //{
                 var p2 = p;
                 long lastsent = 0;
+                var count = 0;
+
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
+
                 while (true)
                 {
-                    sw.Reset();
-                    sw.Start();
                     List<Task> ts = new List<Task>();
                     for (var i = 0; i < batch; i++)
                     {
                         var d = Interlocked.Increment(ref c);
-                        var payload = JsonConvert.SerializeObject(new { Producer = p2, Time = DateTime.UtcNow, Count = d, Padding = Enumerable.Range(0, 0) });
-                        ts.Add(buffer.Publish(payload));
-
-                        //if (lastsent != 0 && x!= lastsent + 1)
-                        //{
-                        //}
-                        //lastsent = x;
-                        if (c % 10000 == 0)
-                            Console.WriteLine(c);
+                        Interlocked.Increment(ref count);
+                        var payload = JsonConvert.SerializeObject(new { Producer = p2, Time = DateTime.UtcNow.Ticks, Count = d, Padding = Enumerable.Range(0, 0) });
+                        ts.Add(producer.Publish("key1", Encoding.UTF8.GetBytes(payload)));
+                        
+                        if (sw.ElapsedMilliseconds > 1000)
+                        {
+                            sw.Stop();
+                            var rate = ((double)count * 1000) / sw.ElapsedMilliseconds;
+                            Console.WriteLine($"\r{rate}");
+                            count = 0;
+                            sw.Reset();
+                            sw.Start();
+                        }
                     }
 
                     Task.WaitAll(ts.ToArray());
@@ -69,7 +77,10 @@ namespace ConsoleApplication1
         {
             //ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21");
             ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost:6379");
-            Circular(redis);
+
+            Task.Run(() => { Circular(redis); });
+
+            Console.ReadLine();
         }
     }
 }

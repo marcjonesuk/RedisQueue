@@ -7,6 +7,7 @@ using System.Data.OleDb;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Reactive.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,18 +15,18 @@ namespace ConsoleApplication2
 {
     class Program
     {
-        static void StartCircularConsumer(ConnectionMultiplexer cm, string q)
+        static void StartCircularConsumer(ConnectionMultiplexer cm)
         {
             //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
             //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-
+            var q = RedQ.GetOrCreateAsync(server, cm.GetDatabase(), "testbuffer", 100000).Result;
+            
             var total = 0;
 
             for (int i = 1; i <= 1; i++)
             {
-                var ring = new RingBufferConsumer(cm.GetDatabase(), server, q, 100000, "consumer" + i, // + Guid.NewGuid().ToString(), 
-                    new ConsumerOptions(AckMode.Process, 50, 50));
+                var ring = q.CreateConsumer();
 
                 long old = -1;
                 bool hadone = false;
@@ -35,7 +36,7 @@ namespace ConsoleApplication2
                 var c2 = 0;
                 var latency = 0d;
 
-                ring.AsObservable()
+                ring.Start()
                     .Do(m => { }, (Exception e) =>
                     {
                         Console.WriteLine(e);
@@ -44,33 +45,36 @@ namespace ConsoleApplication2
                     .Retry()
                     .Subscribe((a) =>
                     {
-                        //Thread.Sleep(1);
-
-                        count++;
-                        c2++;
-                        Interlocked.Increment(ref total);
-                        dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
-                        var num = x.Count; // long.Parse(a);
-                        if (hadone && num != old + 1)
-                            Console.WriteLine("error");
-
-                        old = num;
-                        hadone = true;
-                        //Thread.Sleep(1);
-
-                        //dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
-                        latency += ((TimeSpan)(DateTime.UtcNow - x.Time)).TotalMilliseconds;
-
-                        if (sw.ElapsedMilliseconds > 1000)
+                        try
                         {
-                            //dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(a);
+                            //Thread.Sleep(1);
+                            count++;
+                            c2++;
+                            Interlocked.Increment(ref total);
+                            dynamic x = JsonConvert.DeserializeObject<ExpandoObject>(Encoding.UTF8.GetString(a.Value));
+                            var num = x.Count;
+                            if (hadone && num != old + 1)
+                                Console.WriteLine("error");
 
-                            var amount = (count * 1000) / sw.ElapsedMilliseconds;
-                            Console.WriteLine($"{Math.Round(latency / count, 2)}  c" + i + "   " + amount + "   " + a + " " + total);
-                            count = 0;
-                            latency = 0;
-                            sw.Reset();
-                            sw.Start();
+                            old = num;
+                            hadone = true;
+                            //Thread.Sleep(1);
+                            latency += (double)(DateTime.UtcNow.Ticks - x.Time) / TimeSpan.TicksPerMillisecond;
+
+                            if (sw.ElapsedMilliseconds > 1000)
+                            {
+                                sw.Stop();
+                                var amount = (count * 1000) / sw.ElapsedMilliseconds;
+                                Console.WriteLine($"{Math.Round(latency / count, 2)}  c" + i + "   " + amount + "   " + a + " " + total);
+                                count = 0;
+                                latency = 0;
+                                sw.Reset();
+                                sw.Start();
+                            }
+                        }
+                        catch(Exception e)
+                        {
+                            Console.WriteLine(e);
                         }
                     }, (Exception e) =>
                     {
@@ -82,11 +86,25 @@ namespace ConsoleApplication2
 
         static void Main(string[] args)
         {
-            Thread.Sleep(5000);
+
+            
+
+
+            Thread.Sleep(1000);
             //ConnectionMultiplexer cm = ConnectionMultiplexer.Connect("DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21");
             ConnectionMultiplexer cm = ConnectionMultiplexer.Connect("localhost:6379");
 
-            StartCircularConsumer(cm, "testbuffer");
+            //var p = RedQ.CreateProducer(cm.GetDatabase(), cm.GetServer(""), "", 1024);
+            //p.Publish("", new byte[5]);
+
+            //var consumer = RedQ.CreateConsumer(cm.GetDatabase(), cm.GetServer(""), "testtopic", "sub1");
+            //consumer.Start()
+            //    .Retry()
+            //    .Subscribe(m =>
+            //{
+            //});
+
+            StartCircularConsumer(cm);
 
             //StartConsumer(cm, "test1");
             //StartConsumer(cm, "test2");
