@@ -23,7 +23,7 @@ if current == head then
 end
 
 --need to check this is correct
-if current <= (head - @Size - @MaxReadSize) then
+if current <= (head - @Length - @MaxReadSize) then
 	return 'L'
 end
 
@@ -34,8 +34,8 @@ local lastRead = current
 local continue = true
 
 while continue do
-	table.insert(result, redis.call('HGET', @KeyKey, current % @Size))
-	table.insert(result, redis.call('HGET', @DataKey, current % @Size))
+	table.insert(result, redis.call('HGET', @KeyKey, current % @Length))
+	table.insert(result, redis.call('HGET', @DataKey, current % @Length))
 	lastRead = current
 
 	current = current + 1

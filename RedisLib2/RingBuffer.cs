@@ -1,18 +1,12 @@
-﻿using RedisLib2;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace RedisLib2
 {
-    public struct Message
-    {
-        public string Key;
-        public byte[] Value;
-        public long MessageId;
-    }
-
     public class InvalidQueueException : Exception
     {
         public InvalidQueueException(string message) : base(message)
@@ -24,14 +18,14 @@ namespace RedisLib2
         }
     }
 
-    public class RedQ
+    public class RingBuffer
     {
         public class DbKeys
         {
-            internal string DataHash { get; set; }
-            internal string HeadString { get; set; }
-            internal string MessageKeyHash { get; set; }
-            internal string LengthString { get; set; }
+            public string DataHash { get; internal set; }
+            public string HeadString { get; internal set; }
+            public string MessageKeyHash { get; internal set; }
+            public string LengthString { get; internal set; }
 
             public DbKeys(string prefix, string name)
             {
@@ -61,10 +55,10 @@ namespace RedisLib2
         public IDatabase Database { get; private set; }
         public IServer Server { get; private set; }
         public DbKeys DbKey { get; private set; }
-        
+
         private string GlobalKeyPrefix = "__redq";
 
-        private RedQ(IServer server, IDatabase database, string name, long length)
+        private RingBuffer(IServer server, IDatabase database, string name, long length)
         {
             Server = server;
             Database = database;
@@ -73,19 +67,20 @@ namespace RedisLib2
             DbKey = new DbKeys(GlobalKeyPrefix, name);
         }
 
-        public const long NotStartedValue = -2;
+        public const long NotStartedValue = -1;
+        public const long StartAtHead = -2;
 
         /// <summary>
-        /// Gets or creates a queue from the given database.
-        /// If the named queue already exists it will be read back from the database.  Otherwise it will create a new queue with the specified length.
-        /// Resizing queues is not supported therefore this will throw an InvalidQueueException if the queue exists but the given size does not match. 
+        /// Gets or creates a ringbuffer from the given database.
+        /// If the named ringbuffer already exists it will be read back from the database.  Otherwise it will create a new ringbuffer with the specified length.
+        /// Resizing ringbuffers is not supported therefore this will throw an InvalidringbufferException if the ringbuffer exists but the given size does not match. 
         /// </summary>
         /// <param name="server">The Redis server</param>
         /// <param name="database">The Redis database</param>
-        /// <param name="name">The desired name of the queue</param>
-        /// <param name="length">The desired or expected queue length, must be greater than zero. For existing queues this must match the current length.</param>
+        /// <param name="name">The desired name of the ringbuffer</param>
+        /// <param name="length">The desired or expected ringbuffer length, must be greater than zero. For existing ringbuffers this must match the current length.</param>
         /// <returns></returns>
-        public static async Task<RedQ> GetOrCreateAsync(IServer server, IDatabase database, string name, long length)
+        public static async Task<RingBuffer> GetOrCreateAsync(IServer server, IDatabase database, string name, long length)
         {
             if (server == null)
                 throw new ArgumentNullException(nameof(server));
@@ -111,21 +106,24 @@ namespace RedisLib2
         }
 
         //to do: need to move this all over to lua so that we can create it atomically
-        private static async Task<RedQ> CreateAsync(IServer server, IDatabase database, string name, long length)
+        private static async Task<RingBuffer> CreateAsync(IServer server, IDatabase database, string name, long length)
         {
-            var q = new RedQ(server, database, name, length);
-
+            var q = new RingBuffer(server, database, name, length);
             var transaction = database.CreateTransaction();
-            await transaction.KeyDeleteAsync(q.DbKey.DataHash);
-            await transaction.StringSetAsync(q.DbKey.HeadString, NotStartedValue);
-            await transaction.StringSetAsync(q.DbKey.LengthString, length);
-            await transaction.ExecuteAsync();
+            transaction.StringSetAsync(q.DbKey.HeadString, NotStartedValue);
+            transaction.StringSetAsync(q.DbKey.LengthString, length);
+            transaction.KeyDeleteAsync(q.DbKey.DataHash);
+            var s = await transaction.ExecuteAsync();
+
+            if (!s)
+                throw new Exception("Create failed");
+
             return q;
         }
 
-        private static async Task<RedQ> ReadAsync(IServer server, IDatabase database, string name, long length)
+        private static async Task<RingBuffer> ReadAsync(IServer server, IDatabase database, string name, long length)
         {
-            var q = new RedQ(server, database, name, length);
+            var q = new RingBuffer(server, database, name, length);
 
             var exists = await database.KeyExistsAsync(q.DbKey.HeadString);
             if (exists)
@@ -150,51 +148,43 @@ namespace RedisLib2
             }
         }
 
-        public static Task DeleteAsync(string name)
+        /// <summary>
+        /// Deletes a ringbuffer from the given database.
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        public static async Task DeleteAsync(IDatabase database, string name)
         {
-            return null;
+            var q = new RingBuffer(null, database, name, 0);
+            await database.KeyDeleteAsync(q.DbKey.DataHash);
+            await database.KeyDeleteAsync(q.DbKey.HeadString);
+            await database.KeyDeleteAsync(q.DbKey.LengthString);
         }
 
-        public RingBufferProducer CreateProducer()
+        /// <summary>
+        /// Creates a producer for the ringbuffer.
+        /// </summary>
+        /// <returns></returns>
+        public Producer CreateProducer()
         {
-            return new RingBufferProducer(this);
+            return new Producer(this);
         }
 
-        public RingBufferConsumer CreateConsumer(ConsumerOptions options = null)
+        /// <summary>
+        /// Creates a consumer for the ringbuffer. Each consumer has a subscription id which is random by default but can be specified as 
+        /// part of the ConsumerOptions parameter. This is required if you want consumers to continue processing from the next message after a restart
+        /// or crash
+        /// </summary>
+        /// <param name="options">Custom configuration options for the consumer. The default values will be used if this parameter is omitted</param>
+        /// <returns></returns>
+        public Consumer CreateConsumer(ConsumerOptions options = null)
         {
-            return new RingBufferConsumer(this, options);
+            return new Consumer(this, options);
         }
 
-        public Task<long> ReadHead()
+        public Task<long> GetHeadPosition()
         {
             return Database.StringGetAsync(DbKey.HeadString).ContinueWith(t => long.Parse(t.Result));
         }
     }
-
-    public class RingBufferProducer
-    {
-        private LoadedLuaScript _script;
-        public RedQ Queue { get; private set; }
-
-        internal RingBufferProducer(RedQ queue)
-        {
-            Queue = queue;
-            _script = LuaScript.Prepare(ScriptPreprocessor(File.ReadAllText("RingBuffer/publish.lua"))).Load(Queue.Server);
-        }
-
-        private string ScriptPreprocessor(string script)
-        {
-            script = script.Replace("@HeadKey", $"{Queue.DbKey.HeadString}");
-            script = script.Replace("@DataKey", $"{Queue.DbKey.DataHash}");
-            script = script.Replace("@KeyKey", $"{Queue.DbKey.MessageKeyHash}");
-            script = script.Replace("@Length", $"'{Queue.Length}'");
-            return script;
-        }
-
-        public Task Publish(string key, byte[] value)
-        {
-            return Queue.Database.ScriptEvaluateAsync(_script, new Message() { Key = key, Value = value });
-        }
-    }
 }
-

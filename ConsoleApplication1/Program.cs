@@ -17,11 +17,11 @@ namespace ConsoleApplication1
     {
         public static void Circular(ConnectionMultiplexer redis)
         {
-            var queue = RedQ.GetOrCreateAsync(redis.GetServer("localhost:6379"), redis.GetDatabase(), "testbuffer", 100000).Result;
+            RingBuffer.DeleteAsync(redis.GetDatabase(), "testbuffer").Wait();
+            var queue = RingBuffer.GetOrCreateAsync(redis.GetServer("localhost:6379"), redis.GetDatabase(), "testbuffer", 1000000).Result;
             var producer = queue.CreateProducer();
 
-            var batch = 100;
-            Thread.Sleep(1500);
+            var batch = 10;
             var numpros = 1;
             long c = -1;
 

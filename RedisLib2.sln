@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "Cons
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication2", "ConsoleApplication2\ConsoleApplication2.csproj", "{2C42A0AB-2BDE-4F58-A124-35AD031AD43C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedQ.Tests", "RedQ.Tests\RedQ.Tests.csproj", "{0A3974F6-800E-45BF-A0CB-171E3C2307DE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{2C42A0AB-2BDE-4F58-A124-35AD031AD43C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2C42A0AB-2BDE-4F58-A124-35AD031AD43C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2C42A0AB-2BDE-4F58-A124-35AD031AD43C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A3974F6-800E-45BF-A0CB-171E3C2307DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A3974F6-800E-45BF-A0CB-171E3C2307DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A3974F6-800E-45BF-A0CB-171E3C2307DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A3974F6-800E-45BF-A0CB-171E3C2307DE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

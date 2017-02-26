@@ -2,14 +2,11 @@ using Newtonsoft.Json;
 using RedisLib2;
 using StackExchange.Redis;
 using System;
-using System.Collections.Concurrent;
-using System.Data.OleDb;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace ConsoleApplication2
 {
@@ -17,16 +14,14 @@ namespace ConsoleApplication2
     {
         static void StartCircularConsumer(ConnectionMultiplexer cm)
         {
-            //DDBRDS001.spreadex.com:6381,password=DEV_bc7859c63ce32c5f6636717d9068f234bf4095eaeeff86b08d480396648bfe21
-            //var server = cm.GetServer("DDBRDS001.spreadex.com:6381");
             var server = cm.GetServer("localhost:6379");
-            var q = RedQ.GetOrCreateAsync(server, cm.GetDatabase(), "testbuffer", 100000).Result;
-            
+            var q = RingBuffer.GetOrCreateAsync(server, cm.GetDatabase(), "testbuffer", 1000000).Result;
+
             var total = 0;
 
             for (int i = 1; i <= 1; i++)
             {
-                var ring = q.CreateConsumer();
+                var consumer = q.CreateConsumer();
 
                 long old = -1;
                 bool hadone = false;
@@ -36,13 +31,7 @@ namespace ConsoleApplication2
                 var c2 = 0;
                 var latency = 0d;
 
-                ring.Start()
-                    .Do(m => { }, (Exception e) =>
-                    {
-                        Console.WriteLine(e);
-                        hadone = false;
-                    })
-                    .Retry()
+                consumer.Start()
                     .Subscribe((a) =>
                     {
                         try
